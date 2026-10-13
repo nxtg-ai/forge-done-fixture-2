@@ -4,6 +4,8 @@
 
 **Results: pending.** The runs are pre-registered in [PREREGISTRATION.md](PREREGISTRATION.md), committed before any run. forge-pm checks the pre-registration before the first run. Results will be added in `evidence/`, as found.
 
+**How this case was chosen:** it was selected because a plain review plausibly misses it, and designed knowing what Forge's `crucible-audit` checks (dead test infrastructure is one of its patterns). A Forge win here shows that Forge **can** catch something a plain review misses, not **how often**. Both arms' numbers will appear right here.
+
 ## The case
 
 A small Python project, `shop`, computes order totals with volume discounts read from `shop/data/tiers.csv`.

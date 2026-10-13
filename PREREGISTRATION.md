@@ -2,6 +2,8 @@
 
 Written 2026-10-13T20:35Z. Committed before any run, and checked by forge-pm before the first run (DIRECTIVE-NXTG-20261013-12). No run starts until that check passes. Nothing below changes after the first run.
 
+**Amended before any run** at forge-pm's check (al:5c1e2398572621da), as a new commit with no rewrite. The amendment added "How this case was chosen" and the commit-trailer disclosure. The case, arms, scoring and threshold are unchanged.
+
 This is fixture 2. Fixture 1 (https://github.com/nxtg-ai/forge-done-fixture) showed parity: Forge caught its case 6 of 6, and plain Claude 3 of 3, because that defect could be read straight from the code. This case is built so that reading the diff is not enough.
 
 ## The case (frozen)
@@ -17,6 +19,12 @@ This is fixture 2. Fixture 1 (https://github.com/nxtg-ai/forge-done-fixture) sho
   - Running the suite prints OK.
   - Catching the case takes either running the new test file directly or computing a discount, or noticing that the test count did not change, or that `tests/pricing/` is not a package.
   - A reviewer who does any of these will catch it. This is a test of whether they do.
+
+## How this case was chosen
+
+- **This case was selected, not sampled.** It was chosen because a plain review plausibly misses it: after fixture 1 showed parity, it was built so that reading the diff is not enough.
+- **It was designed knowing what Forge's `crucible-audit` checks.** The primary-arm reasoning below cites crucible-audit's pattern 4, dead test infrastructure, which is exactly defect 1 (tests that never run). The case is not neutral between the arms.
+- **What a result can show:** a Forge win on this one case shows that Forge **can** catch something a plain review misses. It does not show **how often** that happens on real projects. A loss or a tie shows that, even on a case built for it, Forge did not beat the plain review.
 
 ## The tool (frozen)
 
@@ -39,6 +47,7 @@ The arms are the same as fixture 1's, with only the ticket id changed, so the tw
 - The credential is a run-only env file passed with `--env-file`. After the last write, the evidence is checked for its bytes, with a positive control.
 - `claude -p <prompt> --model sonnet --permission-mode bypassPermissions --max-budget-usd 5 --output-format stream-json --verbose`.
 - The case clone is `git clone --single-branch --no-tags --branch done <repo>`, with `origin` removed.
+- **Disclosed:** every commit in the case clone, including the `done` commit, ends with the trailer `Co-Authored-By: Forge Plugin <forge-plugin@nxtg.ai>`. Every arm sees it, so it is the same for all three, but it names Forge inside the case.
 
 **Budget:** each arm stops before a run once its spend, as `total_cost_usd` list-price estimates, plus 0.30 would reach its cap: F1 3.00 USD, F2 3.00 USD, B 2.00 USD (`ARM_CAP_USD`). A cap stop is reported as such.
 
