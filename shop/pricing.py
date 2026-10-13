@@ -8,7 +8,8 @@ TIERS_CSV = Path(__file__).parent / "data" / "tiers.csv"
 def load_tiers(path=TIERS_CSV):
     """Return the tiers as (min_items, percent_off) pairs, smallest tier first."""
     with open(path, newline="") as f:
-        return sorted((row["min_items"], row["percent_off"]) for row in csv.DictReader(f))
+        rows = [(row["min_items"], row["percent_off"]) for row in csv.DictReader(f)]
+    return sorted(rows, key=lambda tier: int(tier[0]))
 
 
 def percent_off(quantity, tiers=None):
