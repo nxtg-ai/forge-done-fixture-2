@@ -1,0 +1,54 @@
+# Gap analysis: testing
+
+**DONE-2 is marked done, but the bulk tier doesn't work and its tests never run.** Both problems are in the testing scope.
+
+Read-only run. I changed nothing. Orchestrator tools (`forge_check_drift`, `forge_get_knowledge`, `forge_capture_knowledge`) aren't available, so drift detection and the knowledge capture were skipped. The governance health score is 45/100 (F). Its "0% file ratio" test-coverage check looks for a TypeScript `src/` layout, so it doesn't apply to this Python project.
+
+## Findings
+
+**CRITICAL: the bulk tier tests are never discovered.**
+- `tests/pricing/` has no `__init__.py`, so `python3 -m unittest` runs 7 tests and silently skips `test_bulk_tier.py`.
+- `TICKETS.md` says "`python3 -m unittest` passes" for DONE-2, but that command never runs the DONE-2 tests.
+- Fix: add `tests/pricing/__init__.py` (about 0.1h).
+
+**CRITICAL: the production bug the hidden tests would have caught.**
+- Running them explicitly with `python3 -m unittest tests.pricing.test_bulk_tier` shows 3 of 4 failing.
+- `load_tiers()` in `shop/pricing.py:11` sorts the CSV values as strings, so the order is `10, 3, 5`.
+- `percent_off` keeps the last tier it reaches in that order, so 10 and 25 items get 5% off instead of 10%.
+- `percent_off(10)` returns 5, and `order_total(250, 12)` returns the wrong amount.
+- Fix: sort by `int(min_items)`, or convert to ints in `load_tiers`. This is about 0.25h. It affects the `test_tiers_load_from_the_table` assertions in `tests/test_pricing.py`, which expect string tuples.
+
+**HIGH: no test of the real CSV ordering.**
+- Existing tests only use quantities that hit tiers 3 and 5, which happen to work with the wrong sort order.
+- Add a test with the actual CSV and a quantity of 10 or more. The bulk tests already cover this, once they run (about 0.25h).
+
+**MEDIUM: gaps in the tests that exist.**
+- There is no boundary test on the tier thresholds for 4 and 5, or 9 and 10, through `order_total`.
+- `order_total` isn't tested with a zero quantity or a zero unit price, or with a negative unit price. The `ValueError` for a negative price at `shop/cart.py:9` is untested.
+- `percent_off(tiers=...)` and `load_tiers(path=...)` have no custom-input tests.
+- There's no test for the rounding in `subtotal * pct // 100`. It floors the discount, so the total rounds up in the shop's favour.
+- Estimated effort: about 1h.
+
+**LOW: tooling.**
+- pytest isn't installed, and there's no CI or test runner config such as a `Makefile` or `pyproject.toml`.
+- There's no coverage measurement.
+- Estimated effort: about 0.5h.
+
+## Coverage
+Both source modules (`cart.py`, `pricing.py`) have a test file, so file coverage is 100%. Behavioural coverage is weaker: 4 of 11 tests (36%) are undiscovered and failing.
+
+## Summary
+- Critical: 2
+- High: 1
+- Medium: 1
+- Low: 1
+- Estimated total effort: about 2h
+
+## Fix order
+1. Add `tests/pricing/__init__.py`.
+2. Fix the tier sort in `load_tiers` and update the string-tuple assertions in `tests/test_pricing.py`.
+3. Re-run `python3 -m unittest` and confirm 11 tests pass.
+4. Correct the DONE-2 status in `TICKETS.md`.
+5. Add the boundary and edge-case tests.
+
+I can apply steps 1–3 if you want. Other nxtg-forge commands (`/nxtg-forge:test`, `/nxtg-forge:checkpoint`) are available, but this project has no governance setup yet.

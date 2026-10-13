@@ -1,0 +1,1 @@
+arm_spent_usd=0.2590 cap=2.00 (list-price estimate from result.total_cost_usd)

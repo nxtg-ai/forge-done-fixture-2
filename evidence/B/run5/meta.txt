@@ -1,0 +1,9 @@
+model=claude-sonnet-5-5
+claude_code=2.1.296
+plugins=['cc-plugin-agents-md', 'cc-plugin-telemetry', 'cc-plugin-plugin-authoring']
+mcp_servers=[]
+subtype=success
+is_error=False
+turns=4
+cost_usd=0.053796300000000005
+duration_ms=12124

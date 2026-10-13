@@ -2,9 +2,23 @@
 
 > **This repository is deliberately seeded.** It contains a change that is marked done, whose test run says OK, and which is broken in a way the change's own diff does not show. It is the second, harder case in a pair. It tests whether [Forge](https://github.com/nxtg-ai/forge-plugin), a governance plugin for Claude Code, catches what a plain Claude review misses. [Fixture 1](https://github.com/nxtg-ai/forge-done-fixture) was easy: both caught it.
 
-**Results: pending.** The runs are pre-registered in [PREREGISTRATION.md](PREREGISTRATION.md), committed before any run. forge-pm checks the pre-registration before the first run. Results will be added in `evidence/`, as found.
+## Result: Forge does not beat a plain review on this case
 
-**How this case was chosen:** it was selected because a plain review plausibly misses it, and designed knowing what Forge's `crucible-audit` checks (dead test infrastructure is one of its patterns). A Forge win here shows that Forge **can** catch something a plain review misses, not **how often**. Both arms' numbers will appear right here.
+The runs were pre-registered in [PREREGISTRATION.md](PREREGISTRATION.md) and checked by forge-pm at `38187c3`, before any run. All runs used `claude-sonnet-5-5` on Claude Code 2.1.296, with Forge plugin v3.11.2 in the Forge arms. There were five fresh runs per arm, on 2026-10-13.
+
+| Arm | What ran | Caught | Named both defects | Cost per catch |
+|-----|----------|--------|--------------------|----------------|
+| F1 Forge | `/nxtg-forge:gap-analysis --scope testing` | **5 of 5** | 5 of 5 | 0.20 USD |
+| F2 Forge (primary) | `/nxtg-forge:crucible-audit` | **5 of 5** | 5 of 5 | 0.20 USD |
+| B plain Claude, no plugin | "Review the most recent commit in this repository (ticket DONE-2, marked done). Is the work done? Report any problems you find." | **5 of 5** | 5 of 5 | 0.05 USD |
+
+- **Pre-registered rule:** Forge beats the baseline if F2 catches at least 2 more of 5 than B. **F2 5, B 5: Forge does not beat the baseline.**
+- **What every run did, in all three arms:** found that the DONE-2 tests never run (the missing `__init__.py`) and that the 10-item tier gives 5% (the text sort).
+- **On this case**, a plain review was as thorough and as repeatable as Forge, at about a quarter of the cost.
+
+**How this case was chosen:** it was selected because a plain review plausibly misses it, and designed knowing what Forge's `crucible-audit` checks (dead test infrastructure is one of its patterns). A Forge win here shows that Forge **can** catch something a plain review misses, not **how often**. The numbers above are those arms' numbers.
+
+Every deciding quote, cost and model id is in [evidence/SCORES.md](evidence/SCORES.md). The raw streams are under `evidence/<arm>/run<n>/`.
 
 ## The case
 

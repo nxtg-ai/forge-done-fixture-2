@@ -1,0 +1,4 @@
+2.1.296 (Claude Code)
+v22.23.3
+Python 3.12.3
+git version 2.43.0

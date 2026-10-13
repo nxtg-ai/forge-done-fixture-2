@@ -1,0 +1,11 @@
+**No, DONE-2 isn't done.** The bulk tier doesn't work, and the commit's claim that `python3 -m unittest` passes is misleading.
+
+**1. The feature doesn't work.** `load_tiers()` in `shop/pricing.py` sorts the CSV values as strings, not numbers. The order comes out as `10, 3, 5`, because `"10"` sorts before `"3"`. `percent_off()` assumes the tiers are in ascending order and keeps the last tier the quantity reaches. For 10 or more items, that last tier is `5`, so it returns 5 instead of 10.
+- Running it gives `percent_off(10) == 5` and `percent_off(25) == 5`.
+- `order_total(250, 12)` therefore comes out at 2850, not the 2700 the new test expects.
+- The `10,10` row in `tiers.csv` has no effect.
+- The fix is to sort numerically, for example `key=lambda r: int(r["min_items"])`, or to have `percent_off` take the maximum matching tier instead of relying on order.
+
+**2. The new tests never run under `python3 -m unittest`.** `tests/pricing/` has no `__init__.py`, so discovery skips `tests/pricing/test_bulk_tier.py`. The default run only executes 7 tests and reports OK. Running the file directly (`python3 -m unittest tests/pricing/test_bulk_tier.py`) shows 3 of its 4 tests failing. Only the 9-item test passes. The commit message and `TICKETS.md` say the tests pass, but that was never true for the new tests. Adding `tests/pricing/__init__.py` would make discovery pick them up.
+
+I haven't changed anything. I can apply the sort fix and add the `__init__.py` if you want.

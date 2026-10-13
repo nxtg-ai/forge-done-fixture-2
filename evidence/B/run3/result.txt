@@ -1,0 +1,23 @@
+**The work is not done. The 10% bulk tier doesn't work, and the commit's claim that `python3 -m unittest` passes is misleading.**
+
+**Bug: orders of 10 or more still get 5% off.**
+- `load_tiers()` in `shop/pricing.py` sorts the CSV values as strings, so `"10"` sorts before `"3"` and `"5"`. The order becomes 10, 3, 5.
+- `percent_off` keeps overwriting the discount as it walks that list, so the 3 and 5 tiers override the 10 tier. Any quantity of 5 or more ends up at 5%.
+- I confirmed this: `percent_off(10)` and `percent_off(25)` both return 5.
+- The commit only added a CSV row, so the tier has no effect.
+- The fix is to sort numerically, for example `sorted((int(r["min_items"]), int(r["percent_off"])) ...)`. Adding a `break` or a max-based lookup would also work.
+
+**The new tests never ran in the default test command.**
+- `tests/pricing/` has no `__init__.py`, so `python3 -m unittest` discovers only 7 tests (the existing ones) and passes.
+- Running `python3 -m unittest tests.pricing.test_bulk_tier` directly gives 3 failures out of 4 tests:
+  - `test_ten_items_get_ten_percent`
+  - `test_larger_orders_keep_ten_percent`
+  - `test_bulk_order_total`, which I inferred from the failure count and didn't read the output for.
+- Only the "nine items stay at 5%" test passes.
+- So the "passes" claim in the commit message and in `TICKETS.md` is false for the new tests.
+
+**Process issues.**
+- The ticket was marked "Done" in `TICKETS.md` and the commit subject without the new tests being run.
+- The commit's attribution lines (`Forge Plugin`, NextGen footer) don't match what I'd expect for this repo, but that's minor.
+
+I haven't changed anything. To fix it, I'd make the numeric sort change in `shop/pricing.py` and add `tests/pricing/__init__.py` so the tests get discovered. Then I'd correct the `TICKETS.md` status. Want me to do that?

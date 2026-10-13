@@ -1,0 +1,14 @@
+**No, DONE-2 isn't done.** The feature doesn't work, and the "tests pass" claim in the commit message is misleading.
+
+**1. The 10% tier has no effect.** `load_tiers()` in `shop/pricing.py` sorts the tiers as strings, so the order is `"10" < "3" < "5"`. `percent_off()` takes the last tier that matches, so for any quantity of 10 or more the `5` tier overrides the `10` tier.
+- `percent_off(10)` and `percent_off(25)` both return 5, not 10.
+- A 12-item order at 250 cents gets 5% off, which is 2850, not the 2700 the test expects.
+- The fix is to sort numerically, for example `sorted((int(r["min_items"]), int(r["percent_off"])) ...)`. The commit only added the CSV row and never touched this code.
+
+**2. The new tests never run under `python3 -m unittest`.** `tests/pricing/` has no `__init__.py`, so discovery skips it. `python3 -m unittest` runs 7 tests and reports OK, and none of them are the new ones. Running the file directly (`python3 -m unittest tests.pricing.test_bulk_tier`) gives 3 failures out of 4 tests. That means the author either never ran the new tests or ignored the failures. Adding `tests/pricing/__init__.py` would make them run.
+
+**3. The status claims are inaccurate.** The commit message and `TICKETS.md` both say `python3 -m unittest` passes with the new tests. That is only true because the new tests aren't discovered.
+
+The only part that works is the CSV row itself, which is correct. The `percent_off(9) == 5` test passes. Getting the ticket to done needs the numeric sort fix and the `__init__.py`, then a full test run.
+
+I haven't changed anything. I can make those fixes if you want.

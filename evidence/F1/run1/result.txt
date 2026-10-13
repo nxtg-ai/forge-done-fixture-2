@@ -1,0 +1,74 @@
+# Gap analysis: testing
+
+The bulk tier ticket DONE-2 is marked done, but the feature doesn't work. The suite reports green only because the new tests never run.
+
+The orchestrator (`forge`) isn't installed, so I skipped the drift and knowledge checks. I ran the testing dimension by hand, because the repo is only 100 lines. `coverage` isn't installed, so I measured by file mapping and by running the tests instead.
+
+## Critical
+
+**1. The new tests are never run by `python3 -m unittest`.**
+- `tests/pricing/` has no `__init__.py`, so unittest discovery skips it.
+- The README's test command reports `Ran 7 tests ... OK`, and the 4 bulk-tier tests aren't among them.
+- Running them explicitly (`python3 -m unittest tests.pricing.test_bulk_tier`) gives 3 failures out of 4.
+- The "`python3 -m unittest` passes" claim in `TICKETS.md` is true, but only because those tests aren't included.
+- Fix: add `tests/pricing/__init__.py`. Effort: 0.1h.
+
+**2. The 10% tier gives 5%, so DONE-2 isn't actually done.**
+- `load_tiers()` in `shop/pricing.py:11` sorts the CSV values as strings. That puts `"10"` before `"3"` and `"5"`.
+- `percent_off` takes the last tier that matches, not the largest. For 10 or more items, the 5-item tier is processed last and overwrites the 10% result.
+- Actual results: `percent_off(10)`, `(12)` and `(25)` all return 5. `order_total(250, 12)` returns 2850, not the expected 2700.
+- The existing tests didn't catch this because they only use quantities up to 8, and the new tests aren't run.
+- Fix: sort numerically with `int(...)`, or take `max` over the matching tiers. Effort: 0.25h.
+- This is a source bug, not a test gap. I haven't changed anything.
+
+## High
+
+**3. Nothing tests tier order.** No test covers a tier table that is out of order, or a multi-digit `min_items` mixed with single-digit ones, which is how bug 2 got through. Add a test of `load_tiers()` and `percent_off()` using an explicit `tiers=` list. Effort: 0.5h.
+
+**4. No tests for `order_total` at the tier boundaries.**
+- It is tested only at quantities 2 and 6.
+- Missing cases:
+  - quantity 0
+  - exact boundaries at 3, 5 and 10
+  - the negative unit price branch (`cart.py:9`)
+- The integer floor rounding in `cart.py:12` is only checked incidentally. Effort: 0.5h.
+
+## Medium
+
+**5. `test_tiers_load_from_the_table` tests the data file.** It asserts on the real `tiers.csv`, so a legitimate tier change breaks it. Pass a temporary CSV to `load_tiers(path)` instead. Effort: 0.25h.
+
+**6. Tiers are compared as strings in tests.** The tests expect `("3", "2")`, which bakes the loader's string typing into the assertions. Effort: 0.25h.
+
+**7. No coverage tooling and no CI gate.** Nothing would have flagged the skipped directory. A cheap guard is a test that asserts the discovered test count, or a CI step that runs `python3 -m unittest` and also runs the bulk-tier module. Effort: 0.5h.
+
+## Coverage
+
+| Item | Count |
+|---|---|
+| Source modules | 2 (`cart.py`, `pricing.py`) |
+| Modules with a test file | 2 (100%) |
+| Tests that exist | 11 |
+| Tests the README command runs | 7 |
+| Tests that pass when run | 8 of 11 |
+
+Module coverage looks like 100%, but the real picture is worse. The tier logic that changed in DONE-2 is effectively untested and broken.
+
+## Summary
+
+| Severity | Count |
+|---|---|
+| Critical | 2 |
+| High | 2 |
+| Medium | 3 |
+| Low | 0 |
+
+Estimated effort is about 2.4h.
+
+Fix these first:
+1. Add `tests/pricing/__init__.py` (0.1h).
+2. Fix the string sort and last-match logic in `percent_off` (0.25h).
+3. Reopen DONE-2 in `TICKETS.md`, since its status is wrong until 1 and 2 are done.
+4. Add tier-order and boundary tests (1h).
+5. Add a guard so skipped test directories fail loudly (0.5h).
+
+I haven't recorded this in the knowledge base, because the orchestrator that provides `forge_capture_knowledge` isn't installed. Do you want me to apply fixes 1 and 2 and the new tests? You could also run `/nxtg-forge:test` for a baseline first.

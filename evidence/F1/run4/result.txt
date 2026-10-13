@@ -1,0 +1,58 @@
+# Gap analysis: testing
+
+The DONE-2 bulk tier is broken, and the default test run doesn't show it. `TICKETS.md` marks DONE-2 as done with "`python3 -m unittest` passes", but 3 of its 4 tests fail when you run them.
+
+The orchestrator wasn't available (`forge` L2 isn't installed), so drift and knowledge checks were skipped. I did a local analysis only, and I haven't changed any files.
+
+## Critical
+
+**1. The bulk-tier tests never run by default.**
+- `tests/pricing/` has no `__init__.py`, unlike `tests/`. `python3 -m unittest` and `unittest discover` therefore run 7 tests and skip the 4 in `tests/pricing/test_bulk_tier.py`.
+- Running them directly (`python3 -m unittest tests.pricing.test_bulk_tier`) gives 3 failures out of 4.
+- The ticket's "passes" claim is true only because the failing tests are never collected.
+- Fix: add `tests/pricing/__init__.py`. It takes a few minutes.
+
+**2. The bulk tier doesn't work.**
+- `load_tiers` (`shop/pricing.py:11`) sorts the CSV values as strings. The order comes out `('10','10'), ('3','2'), ('5','5')`, because `"10" < "3"` as text.
+- `percent_off` (`shop/pricing.py:14-20`) assumes smallest tier first, so the last matching tier wins. For quantities of 10 or more, the 5% tier is applied last.
+- Actual results for `percent_off` at 9, 10, 12 and 25 items: 5, 5, 5, 5. The expected results are 5, 10, 10, 10.
+- `order_total(250, 12)` returns 2850 instead of 2700, so customers are overcharged 5% on bulk orders.
+- Fix: convert to `int` before sorting in `load_tiers`, or make `percent_off` pick the maximum matching tier. The first option is the better fix. It matches the docstring ("smallest tier first"), and `test_tiers_load_from_the_table` asserts string tuples, so that test would need updating.
+
+## High
+
+**3. The existing tests pin the string-typed API.** `test_tiers_load_from_the_table` asserts `("3", "2")`. A correct fix to `load_tiers` will break it unless the test is updated at the same time.
+
+## Medium
+
+**4. Edge cases are untested.**
+- `load_tiers` has no test for sort order, which is the exact bug above.
+- `percent_off` has no tests for `quantity=0`, a custom `tiers=` argument, or an empty tier list.
+- `order_total` has no test for a negative `unit_price_cents`, even though the code raises on it (`shop/cart.py:9`).
+- `order_total` has no test for rounding. The `//` floor division means odd subtotals discount slightly less than the exact percentage.
+- `test_tiered_order` (250 × 6 = 1425) is the only test that checks a discounted total.
+- `load_tiers` has no test with a missing or malformed CSV.
+
+**5. No runner config or CI.**
+- `pytest` isn't installed, and there is no CI file or documented test command. Nothing would have caught finding 1.
+
+## Summary
+
+| Severity | Count |
+|----------|-------|
+| Critical | 2 |
+| High | 1 |
+| Medium | 2 |
+
+File coverage is 2 of 2 source modules with tests, but it overstates the real position. Only 7 of 11 tests run by default, and the ones that don't run are failing.
+
+Estimated effort is about 1.5h in total: the `__init__.py` and sort fix take 0.5h, and the edge-case tests take about 1h.
+
+Priority order:
+1. Add `tests/pricing/__init__.py` so the failing tests surface.
+2. Fix the tier sort in `load_tiers` and update `test_tiers_load_from_the_table`.
+3. Add sort-order and edge-case tests.
+4. Correct the DONE-2 ticket status until the tests pass.
+5. Add a documented test command or CI step.
+
+I didn't call `forge_capture_knowledge` because the orchestrator isn't installed. I can apply fixes 1 and 2 if you want. Run `/nxtg-forge:checkpoint` first if you'd like a save point.
