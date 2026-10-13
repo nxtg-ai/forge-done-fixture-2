@@ -9,6 +9,10 @@ class PricingTest(unittest.TestCase):
         self.assertIn(("3", "2"), tiers)
         self.assertIn(("5", "5"), tiers)
 
+    def test_tiers_are_ordered_by_size(self):
+        sizes = [int(min_items) for min_items, _ in load_tiers()]
+        self.assertEqual(sizes, sorted(sizes))
+
     def test_below_the_first_tier_pays_full_price(self):
         self.assertEqual(percent_off(2), 0)
 
