@@ -1,0 +1,11 @@
+bad4a97e07a6b4adec61ff72f5104d9b2c47f6c7
+Adding marketplace…✔ Successfully added marketplace: nxtg-forge (declared in user settings)
+Installing plugin "nxtg-forge@nxtg-forge"...✔ Successfully installed plugin: nxtg-forge@nxtg-forge (scope: user)
+Installed plugins:
+
+  ❯ nxtg-forge@nxtg-forge
+    Version: 3.11.2
+    Read from: /home/dev/forge-plugin/plugins/nxtg-forge
+    Scope: user
+    Status: ✔ enabled
+

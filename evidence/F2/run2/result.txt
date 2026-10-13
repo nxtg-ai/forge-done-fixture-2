@@ -1,0 +1,40 @@
+## CRUCIBLE TEST QUALITY AUDIT: shop
+
+**Stack:** Python, stdlib `unittest`. There is no manifest, no coverage config, no mocks, and no CI.
+
+### Verdict: CRITICAL FAIL
+DONE-2 is marked "Done. `python3 -m unittest` passes", but the feature doesn't work. The tests that would show this are never run by the documented command.
+
+| Pattern | Status | Count | Severity |
+|---|---|---|---|
+| 1. Coverage omit gaming | CLEAN | 0 (no coverage config) | n/a |
+| 2. Hollow assertions | CLEAN | 0 (all assertions check exact values) | n/a |
+| 3. Mock proliferation | CLEAN | 0% | n/a |
+| 4. Dead test infrastructure | **FOUND** | 4 tests never discovered | CRITICAL |
+| 5. Mock-heavy integration | CLEAN | 0 | n/a |
+| 6. Untested entry points | CLEAN | `cart.order_total` is tested | n/a |
+| 7. No output verification | **FOUND (partial)** | `tests/test_pricing.py` never checks a tier of 10 or higher | MEDIUM |
+| 8. README/ticket claim fraud | **FOUND** | the ticket claims a pass; the real result is 3 of 4 failing | HIGH |
+
+### Real numbers
+- `python3 -m unittest` runs **7 tests, all passing**. The 4 bulk-tier tests are not among them.
+- Running `tests/pricing/test_bulk_tier.py` directly gives **3 of 4 failing**. Only `test_nine_items_stay_on_the_five_percent_tier` passes.
+- Of the 11 tests that exist, 7 are discovered and 4 are dead, which is 36% dead.
+
+### Smoking guns
+1. **Dead tests.** `tests/pricing/` has no `__init__.py`, so `unittest` discovery skips it. The `tests/` directory has one, which is why the other files are found. `tests/pricing/test_bulk_tier.py` is the only test file for the ticket, and it never runs.
+2. **The feature is broken.** `shop/pricing.py:11` sorts `(row["min_items"], row["percent_off"])` as strings. That gives `[('10','10'), ('3','2'), ('5','5')]`, so `"10"` sorts before `"3"`. The loop in `percent_off` keeps the last tier it reaches, which is now the 5% tier.
+   - `percent_off(10)`, `percent_off(12)` and `percent_off(25)` all return **5, not 10**.
+   - `order_total(250, 12)` returns **2850**, but the bulk test expects 2700.
+   - Customers ordering 10 or more items are being undercharged on the discount.
+3. **The ticket claim is false.** `TICKETS.md:5` says "`python3 -m unittest` passes". That's true, but only because the new tests aren't collected.
+4. **Existing tests can't catch it.** `tests/test_pricing.py` and `tests/test_cart.py` only exercise tiers 3 and 5. A single-digit-only fixture hides the string-sort bug, because lexicographic and numeric order agree for those values.
+
+### Remediation priority
+1. **Fix `load_tiers`.** Convert to ints before sorting, e.g. `sorted((int(r["min_items"]), int(r["percent_off"])) ...)`. Then update the string-typed assertion in `tests/test_pricing.py:9-10` (`("3", "2")`), which is coupled to the bug.
+2. **Make the bulk tests run.** Add `tests/pricing/__init__.py`, and confirm the unittest count rises from 7 to 11.
+3. **Stop trusting the ticket.** Reopen DONE-2 until the discovered suite includes and passes the bulk tests.
+4. **Add boundary tests in `tests/test_pricing.py`.** Cover 9 versus 10 and 100 items, so an ordering regression across the digit boundary can't recur.
+5. **Add a CI check on the collected test count.** It would catch a silent drop in discovery.
+
+I made no changes. The audit is read-only and I didn't touch source or tests. I can apply fixes 1 and 2 if you'd like.

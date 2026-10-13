@@ -1,0 +1,40 @@
+## CRUCIBLE TEST QUALITY AUDIT: run3 (`shop`)
+
+**Stack:** Python 3.12, stdlib `unittest`, no coverage config, no CI, no mocks. The audit was read-only. I changed no source or test files, and `git status` is clean.
+
+### Verdict: CRITICAL FAIL
+
+DONE-2 is marked **Done** and `python3 -m unittest` passes. In reality the 10% bulk tier does not work, and the tests written for it never run.
+
+| Pattern | Status | Count | Severity |
+|---|---|---|---|
+| 1. Coverage omit gaming | CLEAN | no coverage config | n/a |
+| 2. Hollow assertions | CLEAN | 0 (all assertions are value checks) | n/a |
+| 3. Mock proliferation | CLEAN | 0 mocks | n/a |
+| 4. Dead test infrastructure | **FOUND** | 4 of 11 tests never collected | CRITICAL |
+| 5. Mock-heavy integration | CLEAN | none | n/a |
+| 6. Untested entry points | CLEAN | no CLI or API; `order_total` is covered | n/a |
+| 7. No quality verification | **FOUND** (partial) | tier-table tests only check the first two tiers | HIGH |
+| 8. README/ticket claim fraud | **FOUND** | ticket says "passes" and "Done" | HIGH |
+
+### Real Numbers
+- Tests that exist: 11. Tests collected by `python3 -m unittest`: 7. Tests dead: 4, which is every test for DONE-2.
+- When the 4 dead tests are run explicitly, 3 fail and 1 passes (`test_nine_items_stay_on_the_five_percent_tier`).
+- Claimed coverage: none. I didn't measure coverage.
+
+### Smoking Gun Examples
+1. **Dead tests: missing package marker.** `tests/pricing/` has no `__init__.py`, so `unittest` discovery skips it. The README and ticket command runs 7 tests and reports OK, and none of them are the bulk-tier tests. Pointing `unittest discover` straight at the directory fails with `ImportError: Start directory is not importable`.
+2. **The feature is broken: string sort.** `shop/pricing.py:11` sorts `(min_items, percent_off)` as strings. The result is `[('10','10'), ('3','2'), ('5','5')]`, so `"10"` sorts before `"3"`. `percent_off` (`shop/pricing.py:16-19`) takes the last matching tier, so for any order of 10 or more items the 5% tier overwrites the 10% one.
+   - `percent_off(10)`, `percent_off(12)` and `percent_off(25)` all return 5, not 10.
+   - `order_total(250, 12)` returns **2850**, but the bulk tier requires **2700**.
+   - Customers with orders of 10 or more are overcharged 5 percentage points.
+3. **Why this stayed hidden.** The pre-existing tests only reach quantities up to 8, where lexicographic and numeric order agree. The tier loader test (`tests/test_pricing.py:9-10`) also checks only the `3` and `5` tiers.
+4. **The ticket claim is false.** `TICKETS.md:5` says DONE-2 is "Done... `python3 -m unittest` passes". That command is green only because the DONE-2 tests are excluded.
+
+### Remediation Priority
+1. **Fix the sort in `load_tiers`.** Convert to ints, e.g. `sorted((int(r["min_items"]), int(r["percent_off"])) ...)`, and update the `test_pricing.py` assertions that use string tuples. Then rerun the bulk tests.
+2. **Add `tests/pricing/__init__.py`.** Add a guard so the suite can't silently shrink: assert the collected test count is 11 or more, or flatten the layout.
+3. **Add a tier boundary table test.** Cover 2, 3, 4, 5, 9, 10 and 25 against the actual CSV. This also covers the 10-tier absence in `test_tiers_load_from_the_table`.
+4. **Reopen DONE-2** in `TICKETS.md` until `python3 -m unittest -v` shows the bulk-tier tests running and passing.
+
+I haven't made any of these fixes. Do you want me to apply them?

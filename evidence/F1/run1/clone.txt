@@ -1,0 +1,4 @@
+22a37e30e4fe819751f22a98f7e2203bacf97745
+22a37e3 DONE-2: bulk tier, 10% off orders of 10 or more items (done)
+e38c1d5 shop: order totals with volume discount tiers from shop/data/tiers.csv
+done

@@ -1,0 +1,39 @@
+## CRUCIBLE TEST QUALITY AUDIT: `run5` (shop)
+
+**Stack:** Python, stdlib `unittest`. There is no coverage config, CI, or mocking. I read all ~120 lines, so these are verified findings, not grep counts.
+
+### Verdict: CRITICAL FAIL
+
+DONE-2 is marked "Done… `python3 -m unittest` passes", but the feature doesn't work. The tests that would show this never run.
+
+| Pattern | Status | Count | Severity |
+|---|---|---|---|
+| 1. Coverage omit gaming | CLEAN (no config) | 0 | n/a |
+| 2. Hollow assertions | CLEAN (all `assertEqual` on concrete values) | 0 | n/a |
+| 3. Mock proliferation | CLEAN | 0% | n/a |
+| 4. Dead test infrastructure | **FOUND** | 4 tests undiscovered | CRITICAL |
+| 5. Mock-heavy integration | CLEAN | 0 | n/a |
+| 6. Untested entry points | CLEAN (`order_total` is covered) | n/a | n/a |
+| 7. No quality verification | **FOUND** (partial) | see below | HIGH |
+| 8. README/ticket claim fraud | **FOUND** | claim vs reality | HIGH |
+
+### Real numbers
+- The default run (`python3 -m unittest`) collects **7** tests and all 7 pass.
+- `tests/pricing/test_bulk_tier.py` has **4** tests, and **0** of them run by default.
+- When run explicitly (`python3 -m unittest tests.pricing.test_bulk_tier`), **3 of the 4 fail**.
+- Real state: 11 tests exist, 8 pass and 3 fail.
+- `percent_off(10)` returns **5**, not 10. `order_total(250, 12)` returns **2850**, not 2700.
+
+### Smoking guns
+1. **Dead tests (Pattern 4).** `tests/pricing/` has no `__init__.py`, so `unittest` discovery silently skips it. `unittest discover -s tests/pricing` raises "Start directory is not importable". The ticket's only evidence, "`python3 -m unittest` passes", can't see the new tests.
+2. **The bug the dead tests would have caught.** `shop/pricing.py:11` sorts the CSV values as strings, so `"10" < "3" < "5"` and the tiers come back as `[('10','10'), ('3','2'), ('5','5')]`. The loop at `pricing.py:17-19` keeps the last tier reached, so any order of 10 or more items ends on the `5` row and gets 5%. The 10% tier is never applied. The data change in `tiers.csv:4` is correct. The loader is wrong, and the new row exposed it.
+3. **Claim fraud (Pattern 8).** `TICKETS.md:5` says "Done… passes". The delivered behavior is 5% off for 10 or more items instead of the requested 10%. Customers would be overcharged on every bulk order.
+4. **Existing tests dodge the bug (Pattern 7).** `tests/test_pricing.py` and `tests/test_cart.py` only test quantities up to 8, below the point where string sort breaks the result. `test_tiers_load_from_the_table` uses `assertIn` on string tuples, which also locks in the string-typed output.
+
+### Remediation priority
+1. **Make the tests discoverable.** Add `tests/pricing/__init__.py`, or move the file to `tests/`. Then confirm `python3 -m unittest -v` reports 11 tests.
+2. **Fix `load_tiers`.** Convert to ints before sorting: `sorted((int(r["min_items"]), int(r["percent_off"])) ...)`. Update `test_tiers_load_from_the_table` to expect int tuples, and update the `percent_off` loop to match. The 3 failing tests should then go green.
+3. **Add boundary tests.** Cover 4/5, 9/10 and 2/3 in one place. Add a check that `percent_off` never decreases as quantity grows, which would have caught this class of bug.
+4. **Fix `TICKETS.md`.** Reopen DONE-2 until the bulk-tier tests run and pass. Keep a test-count gate (11) in the workflow so a skipped directory shows up as a drop.
+
+This audit was read-only. I ran the tests but changed no files, and `git status` is clean. I can apply fixes 1–3 if you want.

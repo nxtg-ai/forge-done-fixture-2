@@ -1,0 +1,53 @@
+# GAP ANALYSIS: testing scope
+
+The orchestrator isn't installed, so drift and knowledge checks were unavailable. The governance health score is 45/100 (F). Its "0% file ratio" test-coverage figure is a heuristic for TypeScript layouts and doesn't apply to this Python project.
+
+## The main finding: DONE-2 is not actually done
+
+`TICKETS.md` says DONE-2 is done and `python3 -m unittest` passes. Both claims are wrong.
+
+**CRITICAL 1: The bulk-tier tests never run.**
+- `python3 -m unittest` runs 7 tests, but the repo has 11.
+- `tests/pricing/` has no `__init__.py`, so discovery skips `tests/pricing/test_bulk_tier.py`. The 4 tests in that file are silently dropped.
+- Run directly (`python3 -m unittest tests.pricing.test_bulk_tier`), 3 of the 4 fail.
+
+**CRITICAL 2: The 10% tier doesn't work.**
+- `load_tiers()` in `shop/pricing.py:11` sorts the CSV values as strings.
+- The order comes out `('10','10'), ('3','2'), ('5','5')`, because `"10"` sorts before `"3"`.
+- `percent_off` keeps the last tier the quantity reaches, so the 5% tier overrides the 10% one.
+- Actual output: `percent_off(10)`, `percent_off(12)` and `percent_off(25)` all return 5, not 10.
+- `order_total(250, 12)` returns 2850 instead of 2700, so customers are overcharged on every bulk order.
+- The docstring says "smallest tier first", which is false.
+
+The first problem hid the second: the suite looks green only because the tests that would catch the bug aren't collected.
+
+## Other gaps
+
+| Severity | Gap |
+|---|---|
+| HIGH | Tests are inconsistent about layout. The two flat files in `tests/` are discovered and the nested one isn't, with no CI or documented command to catch that. |
+| MEDIUM | `tests/test_pricing.py` only checks tiers 3 and 5. Nothing exercises the sort order or `load_tiers` with a custom path or a missing file. The checks on `("3","2")` and `("5","5")` pass with the bug in place. |
+| MEDIUM | No test for `cart.order_total` rejecting a negative unit price. The other `ValueError` branch is tested. |
+| MEDIUM | No boundary or rounding tests: quantity 0, and subtotals where `// 100` truncates. |
+| LOW | There is no coverage tooling, CI config or `CLAUDE.md`. |
+
+**Tests and source:** `shop/cart.py` and `shop/pricing.py` each have a test file, so file coverage is 2/2. Real coverage of the tier logic is incomplete, though, because the key tier is untested in practice.
+
+## Summary
+
+- CRITICAL: 2
+- HIGH: 1
+- MEDIUM: 3
+- LOW: 1
+- Estimated effort: about 1.5h
+
+Top priorities:
+1. **[CRITICAL]** Sort tiers numerically with `key=lambda r: (int(r["min_items"]), int(r["percent_off"]))`, ideally returning ints (0.25h).
+2. **[CRITICAL]** Add `tests/pricing/__init__.py`, or move the file, so `python3 -m unittest` collects all 11 tests (0.1h).
+3. **[HIGH]** Reopen DONE-2 in `TICKETS.md` until the full suite passes (0.1h).
+4. **[MEDIUM]** Add regression tests for numeric tier ordering and boundaries (0.5h).
+5. **[MEDIUM]** Add a negative-unit-price test and rounding tests (0.3h).
+
+I haven't changed any files, since this was an analysis run. I also didn't call `forge_capture_knowledge`, because the orchestrator isn't running.
+
+I can apply fixes 1–3 and add the regression tests if you'd like. Other next steps: `/nxtg-forge:test`, `/nxtg-forge:checkpoint` before fixes, or `/nxtg-forge:feature`.

@@ -1,0 +1,21 @@
+**No, DONE-2 isn't done.** The bulk tier doesn't work, and the commit's claim that `python3 -m unittest` passes is misleading.
+
+**1. The feature is broken.** `load_tiers()` in `shop/pricing.py` sorts the CSV rows as strings, so `"10"` sorts before `"3"` and `"5"`. The tiers come back as `[('10','10'), ('3','2'), ('5','5')]`. `percent_off` takes the last tier it reaches, so it ends on the 5% tier for any large order.
+- `percent_off(10)` returns 5, not 10.
+- `percent_off(25)` returns 5, not 10.
+- `order_total(250, 12)` is therefore wrong. The test expects 2700 and gets the 5% price.
+
+The CSV row is correct. The fix belongs in `shop/pricing.py`: sort on `int(min_items)`.
+
+**2. The new tests never run in the default suite.** `tests/pricing/` has no `__init__.py`, so `python3 -m unittest` doesn't discover `test_bulk_tier.py`. It runs only 7 tests (from `tests/test_cart.py` and `tests/test_pricing.py`) and reports OK. Running the new file directly gives 3 failures out of 4 (the 9-item test passes by accident). The "passes" claim in the commit message and `TICKETS.md` comes from a run that never executed the new tests.
+
+**3. Smaller issues.**
+- `TICKETS.md` records the ticket as "Done" when it isn't.
+- The commit footer credits "Forge Plugin" and carries a marketing line. That is just noise.
+
+**To fix it:**
+1. Sort numerically in `load_tiers`.
+2. Add `tests/pricing/__init__.py`.
+3. Re-run `python3 -m unittest` and confirm the test count goes from 7 to 11.
+
+I haven't changed anything. Want me to apply those fixes?

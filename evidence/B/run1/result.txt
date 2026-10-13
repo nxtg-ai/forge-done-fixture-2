@@ -1,0 +1,24 @@
+**The work is not done. The bulk tier doesn't work, and the commit's claim that `python3 -m unittest` passes is misleading.**
+
+**1. The 10% tier is never applied (`shop/pricing.py`, `load_tiers`).**
+- `load_tiers` sorts the CSV values as strings, not numbers. The order becomes `10, 3, 5` instead of `3, 5, 10`.
+- `percent_off` assumes the tiers are sorted smallest first and keeps overwriting its answer. With the wrong order, the 3 and 5 tiers overwrite the 10 tier.
+- So `percent_off(10)` and `percent_off(25)` both return 5, and a 12-item order gets 5% off instead of 10%.
+- The commit only added the row `10,10` to `tiers.csv`. That row is what exposes the existing sort bug, and the commit didn't touch the code.
+
+**2. The new tests fail, and the default test run never runs them.**
+- Running `python3 -m unittest tests/pricing/test_bulk_tier.py` gives 3 failures out of 4 tests:
+  - `percent_off(10)` returns 5, not 10.
+  - `percent_off(25)` returns 5, not 10.
+  - `order_total(250, 12)` is wrong too.
+- `tests/pricing/` has no `__init__.py`, so `python3 -m unittest` and `python3 -m unittest discover -s tests` don't find that directory. They run only 7 tests, none of them the new ones.
+- The "passes" claim in the commit message and in `TICKETS.md` is therefore false.
+
+**3. Smaller issue.** The ticket status in `TICKETS.md` says "Done", which is wrong until the above is fixed.
+
+**Suggested fix:**
+- Sort numerically in `load_tiers`, for example `sorted((int(r["min_items"]), int(r["percent_off"])) ...)`.
+- Add `tests/pricing/__init__.py`, or move the test file next to the other tests, so the default run includes it.
+- Re-run the full suite and reopen DONE-2 until it passes.
+
+I haven't made any changes. Say so if you want me to apply the fix.

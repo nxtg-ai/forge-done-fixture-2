@@ -1,0 +1,38 @@
+## CRUCIBLE TEST QUALITY AUDIT — shop (Python, stdlib `unittest`)
+
+### Verdict: CRITICAL FAIL
+
+DONE-2 is marked "Done, `python3 -m unittest` passes". It isn't done. The bulk tier doesn't work, and the tests that would show that never run.
+
+| Pattern | Status | Count | Severity |
+|---|---|---|---|
+| 1. Coverage omit gaming | CLEAN | no coverage config | n/a |
+| 2. Hollow assertions | CLEAN | 0 | n/a |
+| 3. Mock proliferation | CLEAN | 0% | n/a |
+| 4. Dead test infrastructure | **FOUND** | 4 tests never discovered | CRITICAL |
+| 5. Mock-heavy integration | CLEAN | 0 | n/a |
+| 6. Untested entry points | CLEAN | no entry points | n/a |
+| 7. No quality verification | CLEAN | the assertions are value-exact | n/a |
+| 8. README/ticket claim fraud | **FOUND** | "passes" claim is false | HIGH |
+
+### Real Numbers
+- `python3 -m unittest` runs 7 tests, all pass. The 4 DONE-2 tests are not among them.
+- `python3 -m unittest tests.pricing.test_bulk_tier` runs 4 tests, **3 fail**.
+- Only `test_nine_items_stay_on_the_five_percent_tier` passes, and only because 9 happens to land on 5%.
+
+### Smoking Gun Examples
+1. **Dead tests.** `tests/pricing/` has no `__init__.py`, unlike `tests/`. unittest discovery skips it silently, so the default run never executes `tests/pricing/test_bulk_tier.py`. The ticket's "passes" evidence comes from a run that didn't include the tests written for it.
+2. **Product bug the dead tests would catch.** `shop/pricing.py:11` sorts the tiers as strings: `[('10','10'), ('3','2'), ('5','5')]`. `percent_off` (`pricing.py:17-19`) keeps the last tier it matches in that order, not the largest. Any order of 5 or more items therefore gets 5%, never 10%.
+   - `percent_off(10)` returns 5 (expected 10).
+   - `percent_off(25)` returns 5 (expected 10).
+   - `order_total(250, 12)` returns 2850 (expected 2700).
+3. **The existing suite hides it.** `tests/test_pricing.py` only covers quantities up to 8, and `load_tiers` is only checked with `assertIn`. Nothing exercises the `10` row, so the string-sort bug stays invisible.
+4. **Adding the CSV row caused the bug.** With only the `3` and `5` rows, string and numeric order agree. The `10` row is the first that breaks them. The data change was right, but the code underneath was wrong.
+
+### Remediation Priority
+1. Fix the ordering in `load_tiers`. Convert to `(int(min_items), int(percent_off))` before sorting, or make `percent_off` take the max over the tiers it reaches. Update `test_tiers_load_from_the_table` to match if the tuple types change.
+2. Add `tests/pricing/__init__.py`, or move `test_bulk_tier.py` up into `tests/`. Then confirm the default `python3 -m unittest` reports 11 tests.
+3. Add a CI or README check that the test count never drops and that no `test_*.py` sits in a directory without `__init__.py`.
+4. Reopen DONE-2 until the 4 tests pass in the default run.
+
+I didn't change any files, since this was a read-only audit. Want me to apply fixes 1 and 2?

@@ -1,0 +1,9 @@
+model=claude-sonnet-5-5
+claude_code=2.1.296
+plugins=['nxtg-forge', 'cc-plugin-agents-md', 'cc-plugin-telemetry', 'cc-plugin-plugin-authoring']
+mcp_servers=[('plugin:nxtg-forge:governance-mcp', 'connected'), ('plugin:nxtg-forge:orchestrator-mcp', 'connected'), ('plugin:nxtg-forge:semgrep-mcp', 'connected')]
+subtype=success
+is_error=False
+turns=7
+cost_usd=0.1971522
+duration_ms=21716

@@ -1,0 +1,36 @@
+# Gap analysis: testing
+
+The bulk-tier feature (DONE-2) is broken, and the default test run doesn't catch it. `TICKETS.md` marks DONE-2 as done with `python3 -m unittest` passing. That is true, but only because the bulk-tier tests never run.
+
+I ran the analysis directly. The orchestrator (L2) isn't installed, so drift and knowledge checks were unavailable, and I didn't record the findings with `forge_capture_knowledge`. The governance health score is 45/100 (F). Its test-coverage check showed 0% because it looks for a JS/TS layout, so I ignored it.
+
+## Findings
+
+| # | Severity | Gap |
+|---|----------|-----|
+| 1 | **Critical** | The bulk-tier tests are never discovered. `tests/pricing/` has no `__init__.py`, and `unittest` skips directories that aren't packages. `python3 -m unittest -v` runs 7 tests and none are from `test_bulk_tier.py`. |
+| 2 | **Critical** | The tests that were skipped fail when run directly. `python3 -m unittest tests/pricing/test_bulk_tier.py` gives 3 failures out of 4. `percent_off(10)`, `percent_off(25)` and `order_total(250, 12)` return 5%, 5% and 2850 instead of 10%, 10% and 2700. Customers ordering 10 or more items get 5% off, not 10%. |
+| 3 | **High** | Root cause in `shop/pricing.py:9`: `load_tiers` sorts the CSV values as strings, so `"10"` sorts before `"3"` and `"5"`. The order is `[('10','10'), ('3','2'), ('5','5')]`. `percent_off` takes the last matching tier, so the 5-item tier overrides the 10-item one. Before the 10-item tier was added this ordering was harmless, which is why the old tests pass. |
+| 4 | Medium | The existing tests encode the string-pair format. `test_tiers_load_from_the_table` asserts `("3", "2")`. Fixing the sort by converting to ints will break it, so it needs updating together with the fix. |
+| 5 | Medium | `percent_off` and `order_total` have no boundary tests at 9, 10 and 11, and no tests for a non-bulk quantity that goes through the 5-item tier. `percent_off` also has no test for a custom `tiers=` argument. |
+| 6 | Low | Edge cases are untested: zero quantity, a negative unit price (the `ValueError` branch), and rounding on subtotals that don't divide evenly by 100. `load_tiers` has no test for a malformed or empty CSV. |
+| 7 | Low | There is no test runner config or CI. The README's only test command is `python3 -m unittest -v`, which would not have shown the problem. `pytest` isn't installed, so `pytest` can't run the suite as an alternative. |
+
+## Coverage
+
+- Source files: 3 (`__init__.py`, `cart.py`, `pricing.py`). Both logic modules have a test file.
+- Test files: 3, of which 1 is never run.
+- Effective tests: 7 run, 4 never run.
+- The suite is green only because of the discovery gap in finding 1.
+
+## Suggested fix order
+
+Estimated effort is about 1 hour in total.
+
+1. Add `tests/pricing/__init__.py` so the 4 tests are discovered. They should then fail, which is the correct state until the fix lands (~5 min).
+2. Fix `load_tiers` to convert to ints before sorting. Alternatively, make `percent_off` pick the maximum `min_items` that still fits, so it doesn't depend on order. Update `test_tiers_load_from_the_table` to match (~15 min).
+3. Add boundary tests at 9, 10 and 11, and test `percent_off` with a custom `tiers=` argument (~20 min).
+4. Add a CI step or test target that fails if the discovered test count drops (~15 min).
+5. Correct the DONE-2 status in `TICKETS.md` until the fix is in.
+
+I haven't changed any files. Do you want me to apply fixes 1 to 3?

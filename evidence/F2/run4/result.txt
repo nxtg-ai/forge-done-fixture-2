@@ -1,0 +1,42 @@
+## CRUCIBLE TEST QUALITY AUDIT — shop (`/home/dev/run4`)
+
+**Stack:** Python 3, stdlib `unittest`. There is no pytest, no coverage tooling and no CI config. I used the Python row of the matrix and read every file by hand. The repo is only 5 source and test files.
+
+### Verdict: CRITICAL FAIL
+
+DONE-2 is marked "Done. `python3 -m unittest` passes", but the bulk tier doesn't work and its tests never run.
+
+| Pattern | Status | Count | Severity |
+|---|---|---|---|
+| 1. Coverage omit gaming | CLEAN (no coverage config exists) | 0 | n/a |
+| 2. Hollow assertions | CLEAN (all use `assertEqual` on exact values) | 0 | n/a |
+| 3. Mock proliferation | CLEAN | 0 mocks | n/a |
+| 4. Dead test infrastructure | **FOUND**: a whole test file is never discovered | 4 tests (1 file) | CRITICAL |
+| 5. Mock-heavy integration | CLEAN | 0 | n/a |
+| 6. Untested entry points | CLEAN (can't measure, but `order_total` is called directly) | n/a | n/a |
+| 7. No output quality verification | CLEAN for assertions. The one suite that checks real output is the dead one. | n/a | n/a |
+| 8. README/ticket claim fraud | **FOUND**: TICKETS.md says "passes" | 1 false claim | HIGH |
+
+### Real Numbers
+- Tests that `python3 -m unittest` runs: **7, all passing**.
+- Tests in the repo: 11.
+- Dead tests: **4** (`tests/pricing/test_bulk_tier.py`). `tests/pricing/` has no `__init__.py`, so discovery skips it.
+- When I run that file explicitly (`python3 -m unittest tests.pricing.test_bulk_tier`), **3 of 4 fail**.
+- Coverage wasn't measured because `coverage` isn't installed. Statically, nothing exercises a 10-or-more quantity through the default suite.
+
+### Smoking Gun Examples
+1. **Dead tests.** `tests/pricing/test_bulk_tier.py` sits in a directory with no `__init__.py` (`tests/` has one, `tests/pricing/` doesn't). `unittest -v` ran 7 tests and none came from this file. The ticket's "`python3 -m unittest` passes" is true only because the bulk tests never run.
+2. **The feature is broken.** `shop/pricing.py:11` sorts the CSV values as strings. `load_tiers()` returns `[('10','10'), ('3','2'), ('5','5')]`, so the 10 tier comes first. `percent_off` (`pricing.py:17-19`) keeps the last tier it matches, so it ends on the 5 tier. Results:
+   - `percent_off(10)`, `percent_off(12)` and `percent_off(25)` all return **5, not 10**.
+   - `order_total(250, 12)` returns 2850, not 2700.
+   - Customers are overcharged on every bulk order.
+3. **Existing tests miss it.** `tests/test_pricing.py` and `tests/test_cart.py` only exercise quantities up to 8. `test_tiers_load_from_the_table` uses `assertIn` and never checks order. The bug only appears once a tier has more digits than the others, so no earlier test could catch it.
+4. **The claim is unverified.** The commit `22a37e3` message and `TICKETS.md` both say "done", but `README.md` and the ticket point at a command that skips the new tests.
+
+### Remediation Priority
+1. **Fix the bug in `shop/pricing.py:11`.** Sort numerically, for example `sorted((int(r["min_items"]), int(r["percent_off"])) ...)`. That also lets `percent_off` drop its `int()` calls. `tests/test_pricing.py` asserts string tuples like `("3", "2")`, so update it with the change.
+2. **Make the bulk tests run.** Add `tests/pricing/__init__.py`, or move the file up to `tests/`. Then confirm `python3 -m unittest -v` reports 11 tests.
+3. **Add a CI or pre-commit check on the test count.** For example, fail if `unittest` discovers fewer tests than `grep -r "def test_" tests | wc -l`. That would have caught the dead file.
+4. **Update `TICKETS.md`.** DONE-2 shouldn't read "Done" until the above is green.
+
+I made no changes. The audit was read-only, and I ran the suite only to produce the numbers above. Want me to apply fixes 1 and 2?
